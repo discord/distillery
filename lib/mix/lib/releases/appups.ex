@@ -112,7 +112,7 @@ defmodule Mix.Releases.Appup do
     exports         = beam_exports(v1_file)
     imports         = beam_imports(v2_file)
     is_supervisor   = is_supervisor?(attributes)
-    is_special_proc = is_special_process?(exports)
+    is_special_proc = is_special_process?(attributes, exports)
     depends_on = imports
       |> Enum.map(fn {m,_f,_a} -> m end)
       |> Enum.uniq
@@ -134,9 +134,13 @@ defmodule Mix.Releases.Appup do
     exports
   end
 
-  defp is_special_process?(exports) do
-    Keyword.get(exports, :system_code_change) == 4 ||
-    Keyword.get(exports, :code_change) == 3
+  defp is_special_process?(attributes, exports) do
+    if attributes[:distillery_code_change] == [false] do
+      false
+    else
+      Keyword.get(exports, :system_code_change) == 4 ||
+      Keyword.get(exports, :code_change) == 3
+    end
   end
 
   defp is_supervisor?(attributes) do
