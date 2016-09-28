@@ -106,10 +106,10 @@ defmodule Mix.Releases.Appup do
 
   defp generate_instruction(:added, file),   do: {:add_module, module_name(file)}
   defp generate_instruction(:deleted, file), do: {:delete_module, module_name(file)}
-  defp generate_instruction(:changed, {v1_file, v2_file}) do
-    module_name     = module_name(v1_file)
-    attributes      = beam_attributes(v1_file)
-    exports         = beam_exports(v1_file)
+  defp generate_instruction(:changed, {_v1_file, v2_file}) do
+    module_name     = module_name(v2_file)
+    attributes      = beam_attributes(v2_file)
+    exports         = beam_exports(v2_file)
     imports         = beam_imports(v2_file)
     is_supervisor   = is_supervisor?(attributes)
     is_special_proc = is_special_process?(attributes, exports)
