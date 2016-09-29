@@ -20,7 +20,7 @@ my_readlink_f() {
         cd $(dirname "$TARGET_FILE")
         TARGET_FILE=$(basename "$TARGET_FILE")
     done
-    # Compute the canonicalized name by finding the physical path 
+    # Compute the canonicalized name by finding the physical path
     # for the directory we're in and appending the target file.
     PHYS_DIR=$(pwd -P)
     RESULT="$PHYS_DIR/$TARGET_FILE"
@@ -132,11 +132,6 @@ _detect_erts_vsn() {
     "$BINDIR/erl" -boot start_clean -eval 'Ver = erlang:system_info(version), io:format("~s~n", [Ver]), halt()' -noshell
 }
 
-# Private. Gets a list of code paths for this release
-_get_code_paths() {
-    "$ERTS_DIR/bin/escript" "$ROOTDIR/bin/release_utils.escript" "get_code_paths" "$ROOTDIR" "$ERTS_DIR" "$REL_DIR" "$REL_NAME"
-}
-
 # Private. For setting ERTS_DIR and ROOTDIR
 _find_erts_dir() {
     __erts_dir="$RELEASE_ROOT_DIR/erts-$ERTS_VSN"
@@ -169,10 +164,9 @@ _rem_sh() {
             -kernel net_ticktime $TICKTIME \
             "$NAME_TYPE" "$id" -remsh "$NAME" -setcookie "$COOKIE"
     else
-        __code_paths=$(_get_code_paths)
         exec "$BINDIR/erl" \
+            -pa "$ROOTDIR"/lib/*/ebin \
             -pa "$CONSOLIDATED_DIR" \
-            ${__code_paths} \
             -hidden -noshell \
             -boot start_clean -boot_var ERTS_LIB_DIR "$ERTS_LIB_DIR" \
             -kernel net_ticktime $TICKTIME \
@@ -507,15 +501,14 @@ case "$1" in
         # the console will crash with no TTY attached
         [ -f "$PRE_START_HOOK" ] && . "$PRE_START_HOOK"
 
-        __code_paths=$(_get_code_paths)
         # Build an array of arguments to pass to exec later on
         # Build it here because this command will be used for logging.
         set -- "$BINDIR/erlexec" \
             -boot "$BOOTFILE" \
             -boot_var ERTS_LIB_DIR "$ERTS_LIB_DIR" \
             -env ERL_LIBS "$REL_LIB_DIR" \
+            -pa "$ROOTDIR"/lib/*/ebin \
             -pa "$CONSOLIDATED_DIR" \
-            ${__code_paths} \
             -args_file "$VMARGS_PATH" \
             -config "$SYS_CONFIG_PATH" \
             -mode "$CODE_LOADING_MODE" \
@@ -630,14 +623,13 @@ case "$1" in
         ARGS="$@"
 
         # Build arguments for erlexec
-        __code_paths=$(_get_code_paths)
         set -- "$ERL_OPTS"
         [ "$SYS_CONFIG_PATH" ] && set -- "$@" -config "$SYS_CONFIG_PATH"
         set -- "$@" -boot_var ERTS_LIB_DIR "$ERTS_LIB_DIR"
         set -- "$@" -noshell
         set -- "$@" -boot start_clean
+        set -- "$@" -pa "$ROOTDIR"/lib/*/ebin
         set -- "$@" -pa "$CONSOLIDATED_DIR"
-        set -- "$@" ${__code_paths}
         set -- "$@" -s "$MODULE" "$FUNCTION"
 
 
