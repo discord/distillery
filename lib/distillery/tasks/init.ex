@@ -5,7 +5,7 @@ defmodule Mix.Tasks.Release.Init do
   and creates a basic initial configuration file in `rel/config.exs`.
 
   After running this, you can build a release right away with `mix release`,
-  but it is recommended you review the config file to understand it's contents.
+  but it is recommended you review the config file to understand its contents.
 
   ## Examples
 
@@ -16,7 +16,7 @@ defmodule Mix.Tasks.Release.Init do
       mix release.init --no-doc
 
       # For umbrella projects, generate a config where each app
-      # in the umbrella is it's own release, rather than all
+      # in the umbrella is its own release, rather than all
       # apps under a single release
       mix release.init --release-per-app
 
@@ -25,6 +25,9 @@ defmodule Mix.Tasks.Release.Init do
       # of the directory in which the umbrella project resides, with
       # invalid characters replaced or stripped out.
       mix release.init --name foobar
+
+      # Use a custom template for generating the release config.
+      mix release.init --template path/to/template
 
   """
   @shortdoc "initialize a new release configuration"
@@ -47,9 +50,20 @@ defmodule Mix.Tasks.Release.Init do
       false -> get_standard_bindings(opts)
     end
     # Create /rel
-    File.mkdir_p!("rel")
+    File.mkdir_p!("rel/plugins")
+    # Generate .gitignore for plugins folder
+    unless File.exists?("rel/plugins/.gitignore") do
+      File.write!("rel/plugins/.gitignore", "*.*\n!*.exs", [:utf8])
+    end
     # Generate config.exs
-    {:ok, config} = Utils.template(:example_config, bindings)
+    {:ok, config} =
+      case opts[:template] do
+        nil ->
+          Utils.template(:example_config, bindings)
+        template_path ->
+          Utils.template_path(template_path, bindings)
+      end
+
     # Save config.exs to /rel
     File.write!(Path.join("rel", "config.exs"), config)
 
@@ -59,15 +73,24 @@ defmodule Mix.Tasks.Release.Init do
       "make edits as needed/desired, and then run `mix release` to build the release" <>
       IO.ANSI.reset
     )
+  rescue
+    e in [File.Error] ->
+      Logger.error "Initialization failed:\n" <>
+        "    #{Exception.message(e)}"
+      exit({:shutdown, 1})
   end
 
   @defaults [no_doc: false,
-             release_per_app: false]
+             release_per_app: false,
+             name: nil,
+             template: nil]
   @spec parse_args([String.t]) :: Keyword.t | no_return
   defp parse_args(argv) do
     {overrides, _} = OptionParser.parse!(argv,
       strict: [no_doc: :boolean,
-               release_per_app: :boolean])
+               release_per_app: :boolean,
+               name: :string,
+               template: :string])
     Keyword.merge(@defaults, overrides)
   end
 
@@ -77,10 +100,14 @@ defmodule Mix.Tasks.Release.Init do
     apps_paths = Path.wildcard("#{apps_path}/*")
     apps = apps_paths
       |> Enum.map(fn app_path ->
-        Mix.Project.in_project(String.to_atom(Path.basename(app_path)), app_path, fn mixfile ->
-          {Keyword.get(mixfile.project, :app), :permanent}
+        Mix.Project.in_project(String.to_atom(Path.basename(app_path)), app_path, fn
+          nil ->
+            :ignore
+          mixfile ->
+            {Keyword.get(mixfile.project, :app), :permanent}
         end)
       end)
+      |> Enum.filter(fn :ignore -> false; _ -> true end)
     release_per_app? = Keyword.get(opts, :release_per_app, false)
     if release_per_app? do
       [releases: Enum.map(apps, fn {app, start_type} ->
@@ -90,7 +117,8 @@ defmodule Mix.Tasks.Release.Init do
        end)]
       ++ get_common_bindings(opts)
     else
-      release_name = String.replace(Path.basename(File.cwd!), "-", "_")
+      release_name_from_cwd = String.replace(Path.basename(File.cwd!), "-", "_")
+      release_name = Keyword.get(opts, :name, release_name_from_cwd) || release_name_from_cwd
       [releases: [
          [release_name: String.to_atom(release_name),
           is_umbrella: true,
@@ -113,7 +141,8 @@ defmodule Mix.Tasks.Release.Init do
   defp get_common_bindings(opts) do
     no_doc? = Keyword.get(opts, :no_doc, false)
     [no_docs: no_doc?,
-     cookie: get_cookie()]
+     cookie: get_cookie(),
+     get_cookie: &get_cookie/0]
   end
 
   defp get_cookie do
@@ -138,7 +167,7 @@ defmodule Mix.Tasks.Release.Init do
   defp generate_secure_cookie do
     Stream.unfold(nil, fn _ -> {:crypto.strong_rand_bytes(1), nil} end)
     |> Stream.filter(fn b -> b >= "!" && b <= "~" end)
-    |> Stream.reject(fn b -> Enum.member?(["'", "\"", "\\", "#"], b) end) # special when erlexec parses vm.args
+    |> Stream.reject(fn b -> Enum.member?(["-", "+", "'", "\"", "\\", "#"], b) end) # special when erlexec parses vm.args
     |> Enum.take(64)
     |> Enum.join
     |> String.to_atom

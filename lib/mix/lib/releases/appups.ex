@@ -6,16 +6,18 @@ defmodule Mix.Releases.Appup do
   @type app :: atom
   @type version_str :: String.t
   @type path_str :: String.t
+  @type change :: {:advanced, [term]}
+  @type dep_mods :: [module]
 
   @type appup_ver :: char_list
   @type instruction :: {:add_module, module} |
                         {:delete_module, module} |
-                        {:update, module, :supervisor | {:advanced, [term]}} |
+                        {:update, module, :supervisor | change} |
+                        {:update, module, change, dep_mods} |
                         {:load_module, module}
   @type upgrade_instructions :: [{appup_ver, instruction}]
   @type downgrade_instructions :: [{appup_ver, instruction}]
   @type appup :: {appup_ver, upgrade_instructions, downgrade_instructions}
-
 
   @doc """
   Generate a .appup for the given application, start version, and upgrade version.
@@ -55,16 +57,16 @@ defmodule Mix.Releases.Appup do
                     appup = make_appup(v1, v1_path, v1_props, v2, v2_path, v2_props)
                     {:ok, appup}
                   false ->
-                    {:error, {:mismatched_versions, :newer, expected: v2, got: consulted_v2_vsn}}
+                    {:error, {:appups, {:mismatched_versions, [version: :next, expected: v2, got: consulted_v2_vsn]}}}
                 end
-              _ ->
-                {:error, {:invalid_dotapp, v2_dotapp}}
+              {:error, reason} ->
+                {:error, {:appups, :file, {:invalid_dotapp, reason}}}
             end
           false ->
-            {:error, {:mismatched_versions, :older, expected: v1, got: consulted_v1_vsn}}
+            {:error, {:appups, {:mismatched_versions, [version: :previous, expected: v1, got: consulted_v1_vsn]}}}
         end
-      _ ->
-        {:error, {:invalid_dotapp, v1_dotapp}}
+      {:error, reason} ->
+        {:error, {:appups, :file, {:invalid_dotapp, reason}}}
     end
   end
 
@@ -139,7 +141,8 @@ defmodule Mix.Releases.Appup do
       false
     else
       Keyword.get(exports, :system_code_change) == 4 ||
-      Keyword.get(exports, :code_change) == 3
+      Keyword.get(exports, :code_change) == 3 ||
+      Keyword.get(exports, :code_change) == 4
     end
   end
 
@@ -150,8 +153,7 @@ defmodule Mix.Releases.Appup do
   end
 
   # supervisor
-  defp generate_instruction_advanced(m, true, _is_special, []),       do: {:update, m, :supervisor}
-  defp generate_instruction_advanced(m, true, _is_special, dep_mods), do: {:update, m, :supervisor, dep_mods}
+  defp generate_instruction_advanced(m, true, _is_special, _dep_mods), do: {:update, m, :supervisor}
   # special process (i.e. exports code_change/3 or system_code_change/4)
   defp generate_instruction_advanced(m, _is_sup, true, []),       do: {:update, m, {:advanced, []}}
   defp generate_instruction_advanced(m, _is_sup, true, dep_mods), do: {:update, m, {:advanced, []}, dep_mods}
@@ -171,7 +173,7 @@ defmodule Mix.Releases.Appup do
   # feedback arc sets, and none appeared to work as well as the one below. I'm definitely
   # open to better algorithms, because I don't particularly like this one.
   defp topological_sort(instructions) do
-    mods = Enum.map(instructions, fn i-> elem(i, 1) end)
+    mods = Enum.map(instructions, fn i -> elem(i, 1) end)
     instructions
     |> Enum.sort(&do_sort_instructions(mods, &1, &2))
     |> Enum.map(fn
@@ -218,8 +220,10 @@ defmodule Mix.Releases.Appup do
     end
   end
 
-  defp extract_deps({:update, _, _, deps}),   do: deps
-  defp extract_deps({:load_module, _, deps}), do: deps
+  defp extract_deps({:update, _, deps}) when is_list(deps), do: deps
+  defp extract_deps({:update, _, _}),                       do: []
+  defp extract_deps({:update, _, _, deps}),                 do: deps
+  defp extract_deps({:load_module, _, deps}),               do: deps
 
   defp module_name(file) do
     Keyword.fetch!(:beam_lib.info(file), :module)
@@ -229,5 +233,4 @@ defmodule Mix.Releases.Appup do
     {:value, {:vsn, vsn}} = :lists.keysearch(:vsn, 1, props)
     List.to_string(vsn)
   end
-
 end

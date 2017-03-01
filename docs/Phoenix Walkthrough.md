@@ -1,5 +1,11 @@
 ## Phoenix Walkthrough
 
+It is recommended that you review the [Advanced Deployment Guide](http://phoenixframework.org/docs/advanced-deployment),
+which covers Phoenix-specific configuration that needs to be provided in order for your application to work within a release.
+The guide currently references Exrm, but it is an almost identical process with Distillery. I would recommend skipping over
+those parts, and focus on what you need to do to prepare your application. The guide below will walk you through everything in
+more detail.
+
 The goal of this guide is to walk you through the basics of deploying
 a simple Phoenix application with Distillery. We are going to build a
 simple Phoenix application from scratch and take it through 4
@@ -40,6 +46,12 @@ options available.
 
 We will need to configure the `prod` environment before we start
 building releases.
+
+*NOTE*: If you run `mix release` with `MIX_ENV=dev` (the default), then you must also ensure
+that you set `code_reloader: false` in your configuration. If you do not, you'll get a failure
+at runtime about being unable to start `Phoenix.CodeReloader.Server` because it depends on Mix,
+which is not intended to be packaged in releases. As you won't be doing code reloading in a release
+(at least not with the same mechanism), you must disable this.
 
 *file: config/prod.exs*
 ```elixir
@@ -97,7 +109,7 @@ Create a new directory somewhere on your machine called `local_deploy`
 and copy the release tarball you just created into it. Your command
 should look something like this:
 
-`cp rel/phoenix_distillery/releases/0.0.1/phoenix_distillery.tar.gz local_deploy/`
+`cp _build/prod/rel/phoenix_distillery/releases/0.0.1/phoenix_distillery.tar.gz local_deploy/`
 
 Now `cd` into `local_deploy` and extract the tarball with:
 
@@ -132,7 +144,7 @@ end
 
 Remove the logo class from our application.css
 
-*file: web/static/css/app.css*
+*file: web/static/css/phoenix.css*
 ```css
 // We remove the following block of css
 .logo {
@@ -162,17 +174,17 @@ This is the same command as in version 0.0.1 with the exception of
 [appup](https://hexdocs.pm/distillery/upgrades-and-downgrades.html)
 for every application included in the release. These files are then
 used to generate a
-`[relup](https://hexdocs.pm/distillery/upgrades-and-downgrades.html)`
+[relup](https://hexdocs.pm/distillery/upgrades-and-downgrades.html)
 which details how an upgrade (or downgrade) is applied to a running
 application instance.
 
 If all went as planned, you now have a 0.0.2 release in
-`/rel/phoenix_distillery/releases/`. In order to deploy this tarball,
+`_build/prod/rel/phoenix_distillery/releases/`. In order to deploy this tarball,
 you need to create a `0.0.2` directory in `local_deploy/releases` and
 copy the 0.0.2 tarball into this directory. Your copy command should
 look something like this:
 
-`cp rel/phoenix_distillery/releases/0.0.2/phoenix_distillery.tar.gz local_deploy/releases/0.0.2`
+`cp _build/prod/rel/phoenix_distillery/releases/0.0.2/phoenix_distillery.tar.gz local_deploy/releases/0.0.2`
 
 Now all you have to do is upgrade your running instance by executing
 `local_deploy/bin/phoenix_distillery upgrade 0.0.2`. If you go reload
@@ -241,6 +253,7 @@ let socket = new Socket("/socket", {params: {token: window.userToken}})
  socket.connect()
 
 let channel = socket.channel("heartbeat:listen", {})
+channel.join()
 channel.on("ping", payload => { console.log(payload.body) })
 ...
 ```
@@ -265,7 +278,7 @@ just as we did with 0.0.2. So we will generate a release, copy the
 upgrade the application.
 
 1. `./node_modules/brunch/bin/brunch b -p && MIX_ENV=prod mix do phoenix.digest, release --env=prod --upgrade`
-1. `cp rel/phoenix_distillery/releases/0.0.3/phoenix_distillery.tar.gz local_deploy/releases/0.0.3`
+1. `cp _build/prod/rel/phoenix_distillery/releases/0.0.3/phoenix_distillery.tar.gz local_deploy/releases/0.0.3`
 1. `./local_deploy/bin/phoenix_distillery upgrade 0.0.3`
 
 If you go reload your browser and open your console you will be
@@ -314,7 +327,7 @@ into a new release directory under `local_deploy`, and upgrade the
 application.
 
 1. `./node_modules/brunch/bin/brunch b -p && MIX_ENV=prod mix do phoenix.digest, release --env=prod --upgrade`
-1. `cp rel/phoenix_distillery/releases/0.0.4/phoenix_distillery.tar.gz local_deploy/releases/0.0.4`
+1. `cp _build/prod/rel/phoenix_distillery/releases/0.0.4/phoenix_distillery.tar.gz local_deploy/releases/0.0.4`
 1. `./local_deploy/bin/phoenix_distillery upgrade 0.0.4`
 
 *DO NOT RELOAD YOUR BROWSER* Simply stare at your console and wait. In

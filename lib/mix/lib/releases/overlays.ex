@@ -24,9 +24,9 @@ defmodule Mix.Releases.Overlays do
                     {:template, String.t, String.t}
 
   @typep error :: {:error, {:invalid_overlay, term}} |
-                  {:error, {:template_str, String.t}} |
-                  {:error, {:template_file, {non_neg_integer, non_neg_integer, String.t}}} |
-                  {:error, {:overlay_failed, term, overlay}}
+                  {:error, {:template_str, term()}} |
+                  {:error, {:template, term()}} |
+                  {:error, {:overlay_failed, module, term, overlay}}
 
   @doc """
   Applies a list of overlays to the current release.
@@ -52,11 +52,11 @@ defmodule Mix.Releases.Overlays do
         do_apply(output_dir, rest, overlay_vars, [path|acc])
       {:error, {:invalid_overlay, _}} = err -> err
       {:error, {:template_str, _}} = err    -> err
-      {:error, {:template_file, _}} = err   -> err
+      {:error, {:template, _}} = err        -> err
       {:error, reason} ->
-        {:error, {:overlay_failed, reason, overlay}}
+        {:error, {:overlay_failed, :file, {reason, overlay}}}
       {:error, reason, file} ->
-        {:error, {:overlay_failed, reason, file, overlay}}
+        {:error, {:overlay_failed, :file, {reason, file, overlay}}}
     end
   end
 
@@ -107,21 +107,17 @@ defmodule Mix.Releases.Overlays do
 
   @spec template_str(String.t, Keyword.t) :: {:ok, String.t} | {:error, {:template_str, term}}
   def template_str(str, overlay_vars) do
-    try do
-      {:ok, EEx.eval_string(str, overlay_vars)}
-    rescue
-      err in [CompileError] ->
-        {:error, {:template_str, {str, err.description}}}
-    end
+    {:ok, EEx.eval_string(str, overlay_vars)}
+  rescue
+    err in [CompileError] ->
+      {:error, {:template_str, {str, err.description}}}
   end
 
-  @spec template_file(String.t, Keyword.t) :: {:ok, String.t} | {:error, {:template_file, term}}
+  @spec template_file(String.t, Keyword.t) :: {:ok, String.t} | {:error, {:template, term}}
   def template_file(path, overlay_vars) do
-    try do
-      {:ok, EEx.eval_file(path, overlay_vars)}
-    rescue
-      e ->
-        {:error, {:template_file, e.__struct__.message(e)}}
-    end
+    {:ok, EEx.eval_file(path, overlay_vars)}
+  rescue
+    e ->
+      {:error, {:template, e}}
   end
 end

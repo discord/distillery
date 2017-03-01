@@ -34,6 +34,19 @@ defmodule Mix.Releases.App do
   @spec new(atom, start_type | nil) :: nil | __MODULE__.t | {:error, String.t}
   def new(name, start_type)
     when is_atom(name) and start_type in [nil, :permanent, :temporary, :transient, :load, :none] do
+    dep = Enum.find(Mix.Dep.loaded([]), fn %Mix.Dep{app: ^name} -> true; _ -> false end)
+    cond do
+      is_nil(dep) ->
+        do_new(name, start_type)
+      Keyword.get(dep.opts, :runtime) === false ->
+        nil
+      :else ->
+        do_new(name, start_type)
+    end
+  end
+  def new(name, start_type), do: {:error, {:apps, {:invalid_start_type, name, start_type}}}
+
+  defp do_new(name, start_type) do
     _ = Application.load(name)
     case Application.spec(name) do
       nil -> nil
@@ -54,45 +67,55 @@ defmodule Mix.Releases.App do
                     path: path}
     end
   end
-  def new(name, start_type), do: {:error, "Invalid start type for #{name}: #{start_type}"}
+
+  @doc """
+  Determines if the provided start type is a valid one.
+  """
+  @spec valid_start_type?(atom) :: boolean()
+  def valid_start_type?(start_type)
+    when start_type in [:permanent, :temporary, :transient, :load, :none],
+    do: true
+  def valid_start_type?(_), do: false
 
   # Gets a list of all applications which are children
   # of this application.
   defp get_dependencies(name) do
-    try do
-      Mix.Dep.loaded_by_name([name], [])
-      |> Enum.flat_map(fn %Mix.Dep{deps: deps} -> deps end)
-      |> Enum.filter_map(&include_dep?/1, &map_dep/1)
-    rescue
-      Mix.Error -> # This is a top-level app
-        cond do
-          Mix.Project.umbrella? ->
-            # find the app in the umbrella
-            app_path = Path.join(Mix.Project.config[:apps_path], "#{name}")
-            cond do
-              File.exists?(app_path) ->
-                Mix.Project.in_project(name, app_path, fn mixfile ->
-                  mixfile.project[:deps]
-                  |> Enum.filter_map(&include_dep?/1, &map_dep/1)
-                end)
-              :else ->
-                []
-            end
-          :else ->
-            Mix.Project.config[:deps]
-            |> Enum.filter_map(&include_dep?/1, &map_dep/1)
-        end
-    end
+    Mix.Dep.loaded_by_name([name], [])
+    |> Enum.flat_map(fn %Mix.Dep{deps: deps} -> deps end)
+    |> Enum.filter_map(&include_dep?/1, &map_dep/1)
+  rescue
+    Mix.Error -> # This is a top-level app
+      cond do
+        Mix.Project.umbrella? ->
+          # find the app in the umbrella
+          app_path = Path.join(Mix.Project.config[:apps_path], "#{name}")
+          cond do
+            File.exists?(app_path) ->
+              Mix.Project.in_project(name, app_path, fn mixfile ->
+                mixfile.project[:deps]
+                |> Enum.filter_map(&include_dep?/1, &map_dep/1)
+              end)
+            :else ->
+              []
+          end
+        :else ->
+          Mix.Project.config[:deps]
+          |> Enum.filter_map(&include_dep?/1, &map_dep/1)
+      end
   end
 
   defp include_dep?({_, _}),               do: true
   defp include_dep?({_, _, opts}),         do: include_dep?(opts)
   defp include_dep?(%Mix.Dep{opts: opts}), do: include_dep?(opts)
   defp include_dep?(opts) when is_list(opts) do
-    case Keyword.get(opts, :only) do
-      nil  -> true
-      envs when is_list(envs) -> Enum.member?(envs, :prod)
-      env when is_atom(env) -> env == :prod
+    if Keyword.get(opts, :runtime) == false do
+      false
+    else
+      case Keyword.get(opts, :only) do
+        nil  -> true
+        envs when is_list(envs) -> Enum.member?(envs, :prod)
+        env when is_atom(env) -> env == :prod
+      end
     end
   end
 
