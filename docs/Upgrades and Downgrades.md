@@ -10,10 +10,6 @@ is nothing preventing you from using upgrades until you hit that point, doing a 
 continuing with upgrades from there - it ultimately depends on your needs. I would caution anyone thinking
 of using them to evaluate whether they are truly necessary for their use case.
 
-**IMPORTANT**: It is not possible to use hot upgrades and `include_erts: false` in conjunction with one
-another. This is due to how `release_handler` manages information about releases as they are unpacked
-and installed. ERTS must be packaged in the release in order for hot upgrades/downgrades to properly work.
-
 ## A bit about upgrades
 
 When building upgrade releases, Distillery will ensure that all modified
@@ -60,7 +56,7 @@ you should have a `test.app` file in `_build/<env>/lib/test/ebin` that looks som
 
 If you make code changes to, `test_server` for instance, the following is a simple appup file that will
 load your project's application, and call `code_change/3` on `test_server`. The first
-`"0.1.0"` block is the order of operations for the upgrade, the second one is the order of operations for the
+`"0.0.1"` block is the order of operations for the upgrade, the second one is the order of operations for the
 downgrade (note that they should be in reverse order of the upgrade instructions).
 
 ```erlang

@@ -7,12 +7,6 @@ defmodule Mix.Tasks.Release do
       # Build a release using defaults
       mix release
 
-      # Build an executable release
-      mix release --executable
-
-      # Build an executable release which will cleanup after itself after it runs
-      mix release --executable --transient
-
       # Build an upgrade release
       mix release --upgrade
 
@@ -56,7 +50,7 @@ defmodule Mix.Tasks.Release do
   """
   @shortdoc "Build a release for the current mix application"
   use Mix.Task
-  alias Mix.Releases.{Config, Release, Profile, Logger, Assembler, Archiver, Errors}
+  alias Mix.Releases.{Release, Profile, Logger}
 
   @spec run(OptionParser.argv) :: no_return
   def run(args) do
@@ -74,86 +68,97 @@ defmodule Mix.Tasks.Release do
 
     # load release configuration
     Logger.debug "Loading configuration.."
-    case Config.get(opts) do
-      {:error, {:config, :not_found}} ->
-        Logger.error "You are missing a release config file. Run the release.init task first"
-        exit({:shutdown, 1})
-      {:error, {:config, reason}} ->
-        Logger.error "Failed to load config:\n" <>
-          "    #{reason}"
-        exit({:shutdown, 1})
-      {:ok, config} ->
-        archive? = not Keyword.get(opts, :no_tar, false)
-        Logger.info "Assembling release.."
-        do_release(config, archive?: archive?)
-    end
-  end
+    config_path = Path.join([File.cwd!, "rel", "config.exs"])
+    config = case File.exists?(config_path) do
+               true ->
+                 try do
+                   Mix.Releases.Config.read!(config_path)
+                 rescue
+                   e in [Mix.Releases.Config.LoadError]->
+                     file = Path.relative_to_cwd(e.file)
+                     message = e.error.__struct__.message(e.error)
+                     message = String.replace(message, "nofile", file)
+                     Logger.error "Failed to load config:\n" <>
+                       "    #{message}"
+                     exit({:shutdown, 1})
+                 end
+               false ->
+                 Logger.error "You are missing a release config file. Run the release.init task first"
+                 exit({:shutdown, 1})
+             end
 
-  defp do_release(config, archive?: false) do
-    case Assembler.assemble(config) do
-      {:ok, %Release{name: name} = release} ->
-        print_success(release, name)
-      {:error, _} = err ->
-        Logger.error Errors.format_error(err)
-    end
-  rescue
-    e ->
-      Logger.error "Release failed: " <>
-        Exception.message(e) <>
-        "\n#{Exception.format_stacktrace(System.stacktrace)}"
-  end
-  defp do_release(config, archive?: true) do
-    case Assembler.assemble(config) do
-      {:ok, %Release{name: name, profile: %Profile{dev_mode: true, executable: false}} = release} ->
+    # Apply override options
+    config = case Keyword.get(opts, :dev_mode) do
+               nil -> config
+               m   -> %{config | :dev_mode => m}
+             end
+    config = case Keyword.get(opts, :erl_opts) do
+               nil -> config
+               o   -> %{config | :erl_opts => o}
+             end
+    config = %{config |
+               :is_upgrade => Keyword.fetch!(opts, :is_upgrade),
+               :upgrade_from => Keyword.fetch!(opts, :upgrade_from),
+               :selected_environment => Keyword.fetch!(opts, :selected_environment),
+               :selected_release => Keyword.fetch!(opts, :selected_release)}
+    no_tar? = Keyword.get(opts, :no_tar)
+
+    # build release
+    Logger.info "Assembling release.."
+    case {Mix.Releases.Assembler.assemble(config), no_tar?} do
+      {{:ok, %Release{:name => name}}, true} ->
+        print_success(name)
+      {{:ok, %Release{:name => name, profile: %Profile{:dev_mode => true}}}, false} ->
         Logger.warn "You have set dev_mode to true, skipping archival phase"
-        print_success(release, name)
-      {:ok, %Release{name: name} = release} ->
+        print_success(name)
+      {{:ok, %Release{:name => name} = release}, false} ->
         Logger.info "Packaging release.."
-        case Archiver.archive(release) do
+        case Mix.Releases.Archiver.archive(release) do
           {:ok, _archive_path} ->
-            print_success(release, name)
-          {:error, _} = err ->
-            Logger.error Errors.format_error(err)
+            print_success(name)
+          {:error, reason} when is_binary(reason) ->
+            Logger.error "Problem generating release tarball:\n    " <>
+              reason
+            exit({:shutdown, 1})
+          {:error, reason} ->
+            Logger.error "Problem generating release tarball:\n    " <>
+              "#{inspect reason}"
             exit({:shutdown, 1})
         end
-      {:error, _} = err ->
-        Logger.error Errors.format_error(err)
+      {{:error, reason},_} when is_binary(reason) ->
+        Logger.error "Failed to build release:\n    " <>
+          reason
+        exit({:shutdown, 1})
+      {{:error, reason},_} ->
+        Logger.error "Failed to build release:\n    " <>
+          "#{inspect reason}"
+        exit({:shutdown, 1})
     end
-  rescue
-    e ->
-      Logger.error "Release failed: " <>
-        Exception.message(e) <>
-        "\n#{Exception.format_stacktrace(System.stacktrace)}"
   end
 
-  @spec print_success(Release.t, atom) :: :ok
-  defp print_success(%Release{profile: %Profile{output_dir: output_dir, executable: executable?}}, app) do
-    relative_output_dir = Path.relative_to_cwd(output_dir)
-    app = cond do
-      executable? -> "#{app}.run"
-      :else -> app
-    end
+  @spec print_success(atom) :: :ok
+  defp print_success(app) do
     Logger.success "Release successfully built!\n    " <>
       "You can run it in one of the following ways:\n      " <>
-      "Interactive: #{relative_output_dir}/bin/#{app} console\n      " <>
-      "Foreground: #{relative_output_dir}/bin/#{app} foreground\n      " <>
-      "Daemon: #{relative_output_dir}/bin/#{app} start"
+      "Interactive: rel/#{app}/bin/#{app} console\n      " <>
+      "Foreground: rel/#{app}/bin/#{app} foreground\n      " <>
+      "Daemon: rel/#{app}/bin/#{app} start"
   end
 
   @spec parse_args(OptionParser.argv) :: Keyword.t | no_return
   defp parse_args(argv) do
     switches = [silent: :boolean, quiet: :boolean, verbose: :boolean,
-                executable: :boolean, transient: :boolean,
                 dev: :boolean, erl: :string, no_tar: :boolean,
                 upgrade: :boolean, upfrom: :string, name: :string,
                 env: :string, no_warn_missing: :boolean,
                 warnings_as_errors: :boolean]
-    {overrides, _} = OptionParser.parse!(argv, strict: switches)
+    {overrides, _} = OptionParser.parse!(argv, switches)
+    verbosity = :normal
     verbosity = cond do
       Keyword.get(overrides, :verbose, false) -> :verbose
       Keyword.get(overrides, :quiet, false)   -> :quiet
       Keyword.get(overrides, :silent, false)  -> :silent
-      :else -> :normal
+      :else -> verbosity
     end
     {rel, env} = case Keyword.get(overrides, :profile) do
       nil ->
@@ -179,32 +184,16 @@ defmodule Mix.Tasks.Release do
           _ -> :ok
         end
     end
-    executable? = Keyword.get(overrides, :executable, false)
-    is_upgrade? = Keyword.get(overrides, :upgrade, false)
-    {os_type, _} = :os.type()
-    cond do
-      executable? && is_upgrade? ->
-        Logger.error "You cannot combine --executable with --upgrade"
-        exit({:shutdown, 1})
-      executable? && os_type == :win32 ->
-        Logger.error "--executable is not supported on Windows"
-        exit({:shutdown, 1})
-      :else ->
-        :ok
-    end
     # Set warnings_as_errors
     Application.put_env(:distillery, :warnings_as_errors, Keyword.get(overrides, :warnings_as_errors, false))
-    exec_opts = [transient: Keyword.get(overrides, :transient, false)]
     # Return options
     [verbosity: verbosity,
      selected_release: rel,
      selected_environment: env,
      dev_mode: Keyword.get(overrides, :dev),
      erl_opts: Keyword.get(overrides, :erl),
-     executable: executable?,
-     exec_opts: exec_opts,
      no_tar:   Keyword.get(overrides, :no_tar, false),
-     is_upgrade:   is_upgrade?,
+     is_upgrade:   Keyword.get(overrides, :upgrade, false),
      upgrade_from: Keyword.get(overrides, :upfrom, :latest)]
   end
 end

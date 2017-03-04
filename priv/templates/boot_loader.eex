@@ -6,18 +6,14 @@ unset CDPATH
 SCRIPT_DIR="$(cd $(dirname "$0") && pwd -P)"
 RELEASE_ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 RELEASES_DIR="$RELEASE_ROOT_DIR/releases"
-REL_NAME="${REL_NAME:-<%= release_name %>}"
-REL_VSN="${REL_VSN:-$(cat "$RELEASES_DIR"/start_erl.data | cut -d' ' -f2)}"
-ERTS_VSN="${ERTS_VSN:-$(cat "$RELEASES_DIR"/start_erl.data | cut -d' ' -f1)}"
+REL_NAME="<%= release_name %>"
+REL_VSN=$(cat "$RELEASES_DIR"/start_erl.data | cut -d' ' -f2)
+ERTS_VSN=$(cat "$RELEASES_DIR"/start_erl.data | cut -d' ' -f1)
 
-__pid=""
 
 _cleanup() {
-    trap - HUP INT TERM QUIT EXIT USR1 USR2
-    echo ""
-    echo "Shutting down.."
-    "$RELEASES_DIR/$REL_VSN/$REL_NAME.sh" rpc init stop
-    wait $__pid
+    echo "Shutting down node cleanly.."
+    exec "$RELEASES_DIR/$REL_VSN/$REL_NAME.sh" rpc init stop
 }
 
 case "$1" in
@@ -28,7 +24,9 @@ case "$1" in
         __pid=$!
 
         wait $__pid
-        exit $?
+        __exit_status=$?
+
+        exit $__exit_status
         ;;
     *)
         exec "$RELEASES_DIR/$REL_VSN/$REL_NAME.sh" "$@"

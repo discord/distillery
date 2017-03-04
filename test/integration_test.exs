@@ -1,13 +1,13 @@
-Code.require_file("test/mix_test_helper.exs")
-
 defmodule IntegrationTest do
   use ExUnit.Case, async: false
 
   alias Mix.Releases.Utils
-  import MixTestHelper
 
   @standard_app_path Path.join([__DIR__, "fixtures", "standard_app"])
-  @standard_output_path Path.join([__DIR__, "fixtures", "standard_app", "_build", "prod", "rel", "standard_app"])
+  @standard_output_path Path.join([__DIR__, "fixtures", "standard_app", "rel", "standard_app"])
+  @umbrella_app_path Path.join([__DIR__, "fixtures", "umbrella_app"])
+  @umbrella_output_path Path.join([__DIR__, "fixtures", "umbrella_app", "rel", "umbrella"])
+  @partial_umbrella_output_path Path.join([__DIR__, "fixtures", "umbrella_app", "rel", "partial_umbrella"])
 
   defmacrop with_standard_app(body) do
     quote do
@@ -20,6 +20,15 @@ defmodule IntegrationTest do
       {:ok, _} = mix("deps.compile", ["distillery"])
       {:ok, _} = mix("compile")
       {:ok, _} = mix("release.clean")
+      unquote(body)
+      File.cd!(old_dir)
+    end
+  end
+
+  defmacrop with_umbrella_app(body) do
+    quote do
+      old_dir = File.cwd!
+      File.cd!(@umbrella_app_path)
       unquote(body)
       File.cd!(old_dir)
     end
@@ -199,5 +208,20 @@ defmodule IntegrationTest do
     end
     File.rm_rf!(Path.join([@standard_app_path, "rel", "standard_app"]))
     :ok
+  end
+
+  # Call the elixir mix binary with the given arguments
+  defp mix(command),       do: do_cmd(:prod, command)
+  defp mix(command, args), do: do_cmd(:prod, command, args)
+
+  defp do_cmd(env, command, args \\ []) do
+    case System.cmd "mix", [command|args], env: [{"MIX_ENV", "#{env}"}] do
+      {output, 0} ->
+        if System.get_env("VERBOSE_TESTS") do
+          IO.puts(output)
+        end
+        {:ok, output}
+      {output, err} -> {:error, err, output}
+    end
   end
 end

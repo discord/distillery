@@ -1,28 +1,5 @@
 # Common Issues/Questions
 
-## What should I put in my .gitignore?
-
-As of today in master, you do not need to .gitignore anything. Previously,
-you needed to put `rel/<release_name>` in your .gitignore if you didn't
-want to source control artifacts. Release artifacts are now produced under
-`_build/$MIX_ENV/rel/<release_name>`.
-
-You *do* need to make sure that you are source controlling everything needed
-to construct a release if you are doing CI, for example, Phoenix produces a 
-default .gitignore which contains `priv/static`, but you need those assets when
-building your release, so you'll need to make sure that these are *not* ignored.
-
-## I have two dependencies with conflicting modules
-
-This is a tough situation to fix, and is a key reason why the community has a convention
-of namespacing modules. However if you encounter this situation in your own projects, the
-first step is to fork one (or both) projects, namespace the problem modules, and then
-use your fork until the author of the project merges your changes.
-
-It is critical that we as a community let maintainers know when they have modules which
-conflict with other projects, and encourage each other to namespace our projects properly
-to prevent this from happening.
-
 ## Why do I have to set both MIX_ENV and --env?
 
 Mix environments and release environments represent two distinct concepts, though they appear to be the same.
@@ -102,13 +79,3 @@ stripped. To fix this, you will need to stop the currently running release and
 extract the tarball over the top of the release root directory, then start the
 release again. To prevent this from happening in the future, set
 `strip_debug_info: false` when using hot upgrades.
-
-## Permissions
-
-One of the things that often catches people off guard are the permissions required by a release, particularly with upgrades.
-The following is a list of things the release handler expects:
-
-- It can read `$HOME/.erlang.cookie` and create it if it doesn't exist
-- It can read/write the directory it's deployed to (write really only applies to upgrades, but it needs to be able to write to `$RELEASE_MUTABLE_DIR` as well, which is the `var` folder by default).
-
-If permissions are wrong, you may see a variety of errors depending on what permissions are off, but ensure the list above is satisfied, and you should be in good shape.

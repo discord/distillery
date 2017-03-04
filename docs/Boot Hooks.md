@@ -39,7 +39,7 @@ like the following:
 
 
 ```
-> _build/dev/rel/myapp/bin/myapp foreground
+> rel/myapp/bin/myapp foreground
 we're starting!
 ...snip...
 we've started!

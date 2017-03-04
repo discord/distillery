@@ -3,7 +3,7 @@ defmodule Distillery.Mixfile do
 
   def project do
     [app: :distillery,
-     version: "1.2.2",
+     version: "0.9.9",
      elixir: "~> 1.3",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
@@ -11,7 +11,6 @@ defmodule Distillery.Mixfile do
      description: description(),
      package: package(),
      docs: docs(),
-     aliases: aliases(),
      test_coverage: [tool: ExCoveralls]]
   end
 
@@ -19,14 +18,14 @@ defmodule Distillery.Mixfile do
 
   defp deps do
     [{:ex_doc, "~> 0.13", only: [:dev]},
-     {:excoveralls, "~> 0.6", only: [:dev, :test]},
-     {:credo, "~> 0.6", only: [:dev]},
+     {:excoveralls, "~> 0.5", only: [:dev, :test]},
      {:dialyze, "~> 0.2", only: [:dev]}]
   end
 
   defp description do
     """
     Build releases of your Mix projects with ease!
+    WARNING: This package is an experimental replacement for exrm, use at your own risk!
     """
   end
   defp package do
@@ -34,9 +33,6 @@ defmodule Distillery.Mixfile do
       maintainers: ["Paul Schoenfelder"],
       licenses: ["MIT"],
       links: %{"Github": "https://github.com/bitwalker/distillery"}]
-  end
-  defp aliases do
-    ["compile-check": "do compile, credo --strict"]
   end
   defp docs do
     [main: "getting-started",
@@ -48,9 +44,7 @@ defmodule Distillery.Mixfile do
        "docs/Walkthrough.md",
        "docs/Use With Phoenix.md",
        "docs/Phoenix Walkthrough.md",
-       "docs/Running Migrations.md",
        "docs/Upgrades and Downgrades.md",
-       "docs/Use With systemd.md",
        "docs/Common Issues.md",
        "docs/Umbrella Projects.md",
        "docs/Overlays.md",
