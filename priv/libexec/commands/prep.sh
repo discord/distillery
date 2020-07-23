@@ -33,22 +33,20 @@ set -- "$BINDIR/erlexec" $FOREGROUNDOPTIONS \
     ${ERL_OPTS} \
     -extra ${EXTRA_OPTS}
 
-CURENV=($(printenv))
-IFS=' ' read -r -a startenv_arr <<< "$STARTENV"
+IFS=$'\n' CURENV=($(printenv | grep -v STARTENV | sed -e 's/=/="/' | sed -e 's/$/"/'))
+IFS='#' read -r -a startenv_arr <<< "$STARTENV"
 
 diffenv=()
 
 for i in "${CURENV[@]}"
 do
     if [[ ! " ${startenv_arr[@]} " =~ " ${i} " ]]; then
-        diffenv+=("$i")
+        diffenv+=("${i}")
     fi
 done
 
 cat > "$REL_DIR/${REL_NAME}_fast_start.sh" << EOF
 #!/usr/bin/env bash
-$(local IFS=$'\n'; echo "${diffenv[*]}")
-"$@"
+$(for e in "${diffenv[@]}"; do echo "export $e"; done)
+exec $@
 EOF
-
-exec "$@" -- "${1+$ARGS}"

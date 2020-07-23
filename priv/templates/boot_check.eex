@@ -2,8 +2,8 @@
 
 set -e
 
-curenv=($(printenv))
-export STARTENV=$( IFS=$'\n' printf '%s' "${curenv[*]}" )
+curenv=($(printenv | sed -e 's/=/="/' | sed -e 's/$/"/'))
+export STARTENV=$( IFS=$'#' printf '%s' "${curenv[*]}" )
 
 unset CDPATH
 
