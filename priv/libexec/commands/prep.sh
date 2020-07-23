@@ -50,3 +50,5 @@ cat > "$REL_DIR/${REL_NAME}_fast_start.sh" << EOF
 $(for e in "${diffenv[@]}"; do echo "export $e"; done)
 exec $@
 EOF
+
+chmod +x "$REL_DIR/${REL_NAME}_fast_start.sh"
