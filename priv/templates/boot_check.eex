@@ -1,6 +1,9 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 set -e
+
+curenv=($(printenv))
+export STARTENV=$( IFS=$'\n' printf '%s' "${curenv[*]}" )
 
 unset CDPATH
 
