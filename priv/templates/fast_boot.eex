@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -o posix
+set -e
+
+unset CDPATH
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+RELEASE_ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+RELEASES_DIR="$RELEASE_ROOT_DIR/releases"
+REL_NAME="${REL_NAME:-<%= release_name %>}"
+REL_VSN="${REL_VSN:-$(cut -d' ' -f2 "$RELEASES_DIR"/start_erl.data)}"
+ERTS_VSN="${ERTS_VSN:-$(cut -d' ' -f1 "$RELEASES_DIR"/start_erl.data)}"
+
+exec "$RELEASES_DIR/$REL_VSN/${REL_NAME}_fast_start.sh" "$@"
