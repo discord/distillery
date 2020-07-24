@@ -1,9 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/sh
 
 set -e
 
-curenv=($(printenv | sed -e 's/=/="/' | sed -e 's/$/"/'))
-export STARTENV=$( IFS=$'#' printf '%s' "${curenv[*]}" )
+STARTENV=$(printenv | sed -e 's/=/="/' | sed -e 's/$/"/')
+export STARTENV
 
 unset CDPATH
 

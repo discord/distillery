@@ -33,14 +33,15 @@ set -- "$BINDIR/erlexec" $FOREGROUNDOPTIONS \
     ${ERL_OPTS} \
     -extra ${EXTRA_OPTS}
 
-IFS=$'\n' CURENV=($(printenv | grep -v STARTENV | sed -e 's/=/="/' | sed -e 's/$/"/'))
-IFS='#' read -r -a startenv_arr <<< "$STARTENV"
+IFS=$'\n' STARTENV_ARR=($(echo "${STARTENV}"))
+unset STARTENV
+IFS=$'\n' CURENV=($(printenv | sed -e 's/=/="/' | sed -e 's/$/"/'))
 
 diffenv=()
 
 for i in "${CURENV[@]}"
 do
-    if [[ ! " ${startenv_arr[@]} " =~ " ${i} " ]]; then
+    if [[ ! " ${STARTENV_ARR[@]} " =~ " ${i} " ]]; then
         diffenv+=("${i}")
     fi
 done
