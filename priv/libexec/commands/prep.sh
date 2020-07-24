@@ -2,8 +2,7 @@
 
 set -o posix
 
-## This command starts the release in the foreground, i.e.
-## standard out is routed to the current terminal session.
+## This command prepares the fast boot by capturing env vars and args
 
 set -e
 set -m
