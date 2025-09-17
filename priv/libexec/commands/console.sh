@@ -59,6 +59,6 @@ erlexec \
     -args_file "$VMARGS_PATH" \
     -mode "$CODE_LOADING_MODE" \
     ${ERL_OPTS} \
-    -user Elixir.IEx.CLI \
+    -user elixir \
     -extra --no-halt +iex \
     -- "$@"
